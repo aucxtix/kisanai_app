@@ -24,6 +24,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.local.CopilotMessageEntity
 import com.example.data.model.AppStrings
 import com.example.presentation.theme.*
 import kotlinx.coroutines.launch
@@ -57,6 +58,7 @@ data class CopilotMessage(
 @Composable
 fun FarmCopilotScreen(
     strings: AppStrings,
+    history: List<CopilotMessageEntity> = emptyList(),
     onAskCopilot: (String, (String) -> Unit) -> Unit = { _, _ -> },
     onBackClick: () -> Unit = {},
     onOpenDrawer: () -> Unit = {},

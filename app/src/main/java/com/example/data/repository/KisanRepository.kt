@@ -15,6 +15,7 @@ import com.example.core.network.NetworkMonitor
 import com.example.core.session.SessionManager
 import com.example.core.storage.KissanStorageService
 import com.example.core.storage.StorageService
+import com.example.data.local.CopilotMessageEntity
 import com.example.data.local.FarmCropEntity
 import com.example.data.local.KisanDatabase
 import com.example.data.local.ScanRecordEntity
@@ -34,6 +35,7 @@ import kotlinx.coroutines.withContext
 class KisanRepository(context: Context) {
   private val database = KisanDatabase.getDatabase(context)
   private val dao = database.kisanDao()
+  private val copilotDao = database.copilotDao()
   
   // Clean Core Services Foundation
   val storageService: StorageService = KissanStorageService(context)
@@ -48,6 +50,18 @@ class KisanRepository(context: Context) {
 
   val allScans: Flow<List<ScanRecordEntity>> = dao.getAllScans()
   val allCrops: Flow<List<FarmCropEntity>> = dao.getAllCrops()
+
+  // Copilot Methods
+  val copilotHistory: Flow<List<CopilotMessageEntity>> = copilotDao.getAllMessages()
+
+  suspend fun insertCopilotMessage(message: CopilotMessageEntity) {
+    copilotDao.insertMessage(message)
+  }
+
+  suspend fun clearCopilotHistory() {
+    copilotDao.clearHistory()
+  }
+
   
   // Expose auth state through AuthService
   val isLoggedIn: StateFlow<Boolean> = authService.isLoggedIn

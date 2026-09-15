@@ -507,6 +507,7 @@ fun KisanAppContent(
                     DrawerDestination.AI_COPILOT -> {
                       FarmCopilotScreen(
                         strings = strings,
+                        history = viewModel.copilotHistory.collectAsStateWithLifecycle().value,
                         onAskCopilot = { query, callback ->
                           viewModel.askCopilot(query, callback)
                         },

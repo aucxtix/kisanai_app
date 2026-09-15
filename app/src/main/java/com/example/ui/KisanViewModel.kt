@@ -22,6 +22,8 @@ import com.example.ai.FarmRiskProfileResult
 import com.example.ai.FarmSimulationEngine
 import com.example.ai.FarmerIntelligenceEngine
 import com.example.ai.GeminiCopilotService
+import com.example.data.local.CopilotMessageEntity
+
 import com.example.ai.GroundedRecommendation
 import com.example.ai.IoTAnalyticsEngine
 import com.example.ai.IoTDiagnosticsResult
@@ -385,10 +387,34 @@ class KisanViewModel(application: Application) : AndroidViewModel(application) {
 
   fun askCopilot(question: String, onResponse: (String) -> Unit) {
       viewModelScope.launch {
+          val userMsgId = "usr_${System.currentTimeMillis()}"
+          val userEntity = CopilotMessageEntity(id = userMsgId, sender = "farmer", text = question)
+          repository.insertCopilotMessage(userEntity)
+
           val answer = copilotService.askQuestion(question, digitalFarmState.value)
+          
+          val aiMsgId = "ai_${System.currentTimeMillis()}"
+          val aiEntity = CopilotMessageEntity(id = aiMsgId, sender = "kissan_ai", text = answer)
+          repository.insertCopilotMessage(aiEntity)
+          
           onResponse(answer)
       }
   }
+
+  fun clearCopilotHistory() {
+      viewModelScope.launch {
+          repository.clearCopilotHistory()
+      }
+  }
+
+
+
+  val copilotHistory: StateFlow<List<CopilotMessageEntity>> = repository.copilotHistory
+    .stateIn(
+        scope = viewModelScope,
+        started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
 
   private val _snackbarMessage = MutableStateFlow<String?>(null)
   val snackbarMessage: StateFlow<String?> = _snackbarMessage.asStateFlow()
@@ -421,7 +447,7 @@ class KisanViewModel(application: Application) : AndroidViewModel(application) {
     viewModelScope.launch {
       _scanState.value = ScanUiState.Analyzing(cropHint)
       try {
-        when (val result = CropDiseaseDetector.analyzeCropLeaf(bitmap, cropHint, specimenId)) {
+        when (val result = CropDiseaseDetector.analyzeCropLeaf(getApplication(), bitmap, cropHint, specimenId)) {
           is com.example.ai.DetectionResult.Success -> {
             val report = DiseaseRecommendationEngine.generateRecommendation(
               detectedDisease = result.disease,

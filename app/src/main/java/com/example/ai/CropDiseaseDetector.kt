@@ -1,10 +1,15 @@
 package com.example.ai
 
 import android.graphics.Bitmap
+import android.content.Context
+import com.example.ai.TFLiteClassifierHelper
+
 import com.example.data.model.CropDisease
 import com.example.data.model.DiseaseSeverity
 import com.example.data.model.SampleSpecimen
 import kotlinx.coroutines.delay
+import com.example.BuildConfig
+import com.example.ai.GeminiApiClient
 
 sealed class DetectionResult {
   data class Success(val disease: CropDisease) : DetectionResult()
@@ -262,13 +267,11 @@ object CropDiseaseDetector {
    * to provide accurate on-device disease classification even completely offline!
    */
   suspend fun analyzeCropLeaf(
+    context: Context,
     bitmap: Bitmap?,
     selectedCropHint: String?,
     specimenId: String? = null
   ): DetectionResult {
-    // Simulate real on-device TFLite neural inference processing time
-    delay(800)
-
     if (specimenId == "inconclusive_sample" || specimenId == "specimen_inconclusive") {
       return DetectionResult.Inconclusive(
         cropHint = selectedCropHint ?: "Crop Leaf",
@@ -291,8 +294,39 @@ object CropDiseaseDetector {
       return DetectionResult.Success(DISEASE_CATALOG[specimenId]!!)
     }
 
-    // Phase 6 Quality Assessment Pipeline
     if (bitmap != null) {
+      // 1. Process via local TFLite Model
+      try {
+          TFLiteClassifierHelper(context).use { helper ->
+              if (helper.isModelLoaded) {
+                  val classification = helper.classify(bitmap)
+                  if (classification != null && classification.confidence > 0.4f) {
+                      // Map the label to our DISEASE_CATALOG
+                      val label = classification.label
+                      val disease = when {
+                          label.contains("Tomato Late Blight", ignoreCase = true) -> DISEASE_CATALOG["tomato_late_blight"]
+                          label.contains("Tomato Early Blight", ignoreCase = true) -> DISEASE_CATALOG["tomato_early_blight"]
+                          label.contains("Tomato Healthy", ignoreCase = true) -> DISEASE_CATALOG["tomato_healthy"]
+                          label.contains("Rice Bacterial Leaf Blight", ignoreCase = true) -> DISEASE_CATALOG["rice_bacterial_blight"]
+                          label.contains("Rice Leaf Blast", ignoreCase = true) -> DISEASE_CATALOG["rice_blast"]
+                          label.contains("Wheat Leaf Rust", ignoreCase = true) -> DISEASE_CATALOG["wheat_leaf_rust"]
+                          label.contains("Cotton Leaf Curl", ignoreCase = true) -> DISEASE_CATALOG["cotton_leaf_curl"]
+                          label.contains("Healthy", ignoreCase = true) -> DISEASE_CATALOG["tomato_healthy"] // Fallback healthy
+                          else -> null
+                      }
+                      
+                      if (disease != null) {
+                          // Copy with actual confidence
+                          return DetectionResult.Success(disease.copy(confidence = classification.confidence))
+                      }
+                  }
+              }
+          }
+      } catch (e: Exception) {
+          e.printStackTrace()
+      }
+      
+      // Fallback: Phase 6 Quality Assessment Pipeline
       val qualityAssessment = ImageQualityModel.assessQuality(bitmap)
       if (qualityAssessment is ImageQualityAssessment.Insufficient) {
         return DetectionResult.Inconclusive(
@@ -305,7 +339,7 @@ object CropDiseaseDetector {
 
       // Analyze actual bitmap pixels for lesion vs chlorophyll ratio
       val (chlorosisRatio, necrosisRatio, healthyGreenRatio) = extractColorRatios(bitmap)
-
+      
       // Inconclusive if low chlorophyll and non-leaf surface detected
       if (healthyGreenRatio < 0.12f && chlorosisRatio < 0.10f && necrosisRatio < 0.10f) {
         return DetectionResult.Inconclusive(
@@ -354,6 +388,7 @@ object CropDiseaseDetector {
       selectedCropHint?.contains("Wheat", ignoreCase = true) == true -> DISEASE_CATALOG["wheat_leaf_rust"]!!
       else -> DISEASE_CATALOG["tomato_late_blight"]!!
     }
+    
     return DetectionResult.Success(defaultDisease)
   }
 

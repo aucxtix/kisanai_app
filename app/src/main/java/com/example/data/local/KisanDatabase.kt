@@ -12,13 +12,15 @@ import androidx.room.RoomDatabase
     SensorReadingEntity::class,
     DeviceEntity::class,
     MarketPriceEntity::class,
-    WeatherObservationEntity::class
+    WeatherObservationEntity::class,
+    CopilotMessageEntity::class
   ],
-  version = 3,
+  version = 4,
   exportSchema = false
 )
 abstract class KisanDatabase : RoomDatabase() {
   abstract fun kisanDao(): KisanDao
+  abstract fun copilotDao(): CopilotDao
 
   companion object {
     @Volatile
